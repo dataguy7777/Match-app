@@ -1,9 +1,20 @@
 import streamlit as st
 import pandas as pd
-import openai
+import os
+from dotenv import load_dotenv
 
-# Set your OpenAI API key
-openai.api_key = 'YOUR_OPENAI_API_KEY'
+# Load environment variables from .env file
+load_dotenv()
+openai_api_key = os.getenv('OPENAI_API_KEY')
+
+if openai_api_key:
+    import openai
+    openai.api_key = openai_api_key
+else:
+    # Import sentence-transformers for open-source LLM
+    from sentence_transformers import SentenceTransformer, util
+    import torch
+    model = SentenceTransformer('all-MiniLM-L6-v2')  # Or choose another model
 
 st.title("Sentence Matching App")
 
@@ -40,35 +51,14 @@ if uploaded_file is not None:
         source_sentences = df[source_col].dropna().tolist()
         target_sentences = df[target_col].dropna().tolist()
 
-        # Generate matches using LLM
         st.info("Generating matches, please wait...")
+
         matches = []
 
-        for source in source_sentences:
-            # Prepare the prompt for the LLM
-            prompt = f"Find the best match for the following sentence from the target sentences:\n\nSource Sentence: {source}\n\nTarget Sentences:\n"
-            for idx, target in enumerate(target_sentences):
-                prompt += f"{idx+1}. {target}\n"
-            prompt += "\nProvide the number of the best matching target sentence."
-
-            # Call the OpenAI API
-            response = openai.Completion.create(
-                engine="text-davinci-003",
-                prompt=prompt,
-                max_tokens=5,
-                temperature=0
-            )
-
-            # Extract the match index
-            match_idx = int(response.choices[0].text.strip()) - 1
-            best_match = target_sentences[match_idx]
-
-            matches.append({
-                'Source Sentence': source,
-                'Best Match': best_match
-            })
-
-        # Save matches to session state
-        st.session_state['matches_df'] = pd.DataFrame(matches)
-
-        st.success("Matches generated successfully! Navigate to 'Display Matches' page to view them.")
+        if openai_api_key:
+            # Generate matches using OpenAI LLM
+            for source in source_sentences:
+                # Prepare the prompt for the LLM
+                prompt = f"Find the best match for the following sentence from the target sentences:\n\nSource Sentence: {source}\n\nTarget Sentences:\n"
+                for idx, target in enumerate(target_sentences):
+                    prompt
