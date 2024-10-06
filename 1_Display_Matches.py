@@ -22,16 +22,13 @@ def filter_matches(df, category=None, score_threshold=None):
 
     Returns:
         pd.DataFrame: Filtered DataFrame.
-
-    Example:
-        filtered_df = filter_matches(df, category='A', score_threshold=50)
     """
     logger.info("Applying filters to matches.")
     try:
         if category:
             df = df[df['Category'] == category]
             logger.debug(f"Filtered by category: {category}")
-        if score_threshold is not None:
+        if score_threshold is not None and 'Score' in df.columns:
             df = df[df['Score'] >= score_threshold]
             logger.debug(f"Filtered by score threshold: {score_threshold}")
         logger.info(f"Filtering completed. Number of matches after filtering: {len(df)}")
@@ -40,6 +37,8 @@ def filter_matches(df, category=None, score_threshold=None):
         logger.error(f"Error during filtering matches: {e}")
         st.error("An error occurred while filtering matches.")
         return pd.DataFrame()
+
+st.set_page_config(page_title="📊 Display Matches", layout="wide")
 
 st.title("📊 Display Matches")
 
@@ -63,7 +62,7 @@ if 'matches_df' in st.session_state:
     else:
         # Sidebar for Filters
         st.sidebar.header("🔍 Filter Matches")
-        
+
         # Example filters (modify based on actual dataframe columns)
         if 'Category' in matches_df.columns:
             categories = matches_df['Category'].dropna().unique().tolist()
@@ -74,7 +73,7 @@ if 'matches_df' in st.session_state:
             )
             matches_df = matches_df[matches_df['Category'].isin(selected_categories)]
             logger.debug(f"Selected categories: {selected_categories}")
-        
+
         if 'Score' in matches_df.columns:
             min_score, max_score = float(matches_df['Score'].min()), float(matches_df['Score'].max())
             score_threshold = st.sidebar.slider(
@@ -85,14 +84,14 @@ if 'matches_df' in st.session_state:
             )
             matches_df = matches_df[matches_df['Score'] >= score_threshold]
             logger.debug(f"Applied score threshold: {score_threshold}")
-        
-        st.subheader("Filtered Matches")
+
+        st.subheader("🔍 Filtered Matches")
         st.dataframe(matches_df)
 
         # Download Options
         csv = matches_df.to_csv(index=False).encode('utf-8')
         st.download_button(
-            label="Download Filtered Matches as CSV",
+            label="💾 Download Filtered Matches as CSV",
             data=csv,
             file_name='filtered_matches.csv',
             mime='text/csv',
