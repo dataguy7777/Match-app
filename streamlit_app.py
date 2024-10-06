@@ -1,66 +1,72 @@
 #streamlit_app.py
-
 import streamlit as st
 import pandas as pd
-import os
-from dotenv import load_dotenv
+import logging
 
-# Load environment variables from .env file
-load_dotenv()
-openai_api_key = os.getenv('OPENAI_API_KEY')
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-if openai_api_key:
-    import openai
-    openai.api_key = openai_api_key
-else:
-    # Import sentence-transformers for open-source LLM
-    from sentence_transformers import SentenceTransformer, util
-    import torch
-    model = SentenceTransformer('all-MiniLM-L6-v2')  # Or choose another model
+def generate_matches(df):
+    """
+    Generates matches based on the input dataframe.
 
-st.title("Sentence Matching App")
+    Args:
+        df (pd.DataFrame): Input dataframe containing data to generate matches.
 
-st.header("1. Upload Your File")
+    Returns:
+        pd.DataFrame: DataFrame containing generated matches.
 
-# File uploader
-uploaded_file = st.file_uploader("Upload an Excel or CSV file", type=["xlsx", "csv"])
+    Example:
+        input_df = pd.DataFrame({'Name': ['Alice', 'Bob'], 'Score': [85, 90]})
+        matches = generate_matches(input_df)
+    """
+    logger.info("Starting match generation.")
+    try:
+        # Placeholder for actual match generation logic
+        df['Best Match'] = df['Name']  # Dummy implementation
+        logger.debug(f"Generated matches:\n{df.head()}")
+        logger.info("Match generation completed successfully.")
+        return df
+    except Exception as e:
+        logger.error(f"Error during match generation: {e}")
+        st.error("An error occurred while generating matches.")
+        return pd.DataFrame()
 
-if uploaded_file is not None:
-    # Read the file into a dataframe
-    if uploaded_file.name.endswith('.csv'):
+st.title("🔍 Match Generator")
+
+# Instructions Section
+with st.expander("ℹ️ Instructions"):
+    st.write("""
+        - **Upload Data:** Provide a CSV file to generate matches.
+        - **Generate Matches:** Click the button to create matches based on your data.
+        - **Fine-Tune Matches:** Navigate to the Fine-Tune page to refine your matches.
+    """)
+
+# File Uploader
+uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+if uploaded_file:
+    try:
         df = pd.read_csv(uploaded_file)
-    else:
-        df = pd.read_excel(uploaded_file)
-
-    st.write("File Uploaded Successfully!")
-
-    st.header("2. Select Source and Target Columns")
-
-    # Column selection
-    columns = df.columns.tolist()
-    source_col = st.selectbox("Select the Source Column", columns)
-    target_col = st.selectbox("Select the Target Column", columns)
-
-    st.header("3. Set Parameters")
-
-    # Parameter for top X matches
-    top_x = st.number_input("Enter the number of top matches to find (X)", min_value=1, value=5)
-
-    st.header("4. Generate Matches")
-
-    if st.button("Generate Matches"):
-        # Get the sentences
-        source_sentences = df[source_col].dropna().tolist()
-        target_sentences = df[target_col].dropna().tolist()
-
-        st.info("Generating matches, please wait...")
-
-        matches = []
-
-        if openai_api_key:
-            # Generate matches using OpenAI LLM
-            for source in source_sentences:
-                # Prepare the prompt for the LLM
-                prompt = f"Find the best match for the following sentence from the target sentences:\n\nSource Sentence: {source}\n\nTarget Sentences:\n"
-                for idx, target in enumerate(target_sentences):
-                    prompt
+        st.success("File uploaded successfully!")
+        logger.info("CSV file uploaded and read into dataframe.")
+        st.write("Data Preview:", df.head())
+        
+        if st.button("Generate Matches"):
+            matches_df = generate_matches(df)
+            if not matches_df.empty:
+                st.session_state['matches_df'] = matches_df
+                st.success("Matches generated and saved to session state.")
+                logger.info("Matches saved to session state.")
+            else:
+                st.warning("No matches were generated.")
+                logger.warning("Generated matches dataframe is empty.")
+    except Exception as e:
+        st.error("Error uploading or processing the file.")
+        logger.error(f"Error in file upload or processing: {e}")
+else:
+    st.warning("Please upload a CSV file to generate matches.")
+    logger.warning("No file uploaded by the user.")
