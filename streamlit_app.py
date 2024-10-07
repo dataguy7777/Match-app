@@ -1,4 +1,3 @@
-
 # streamlit_app.py
 
 import streamlit as st
@@ -8,8 +7,8 @@ import logging
 from dotenv import load_dotenv
 
 # Import custom page modules
-import 1_Display_Matches
-import 2_Fine_Tune
+import page_1_Display_Matches
+import page_2_Fine_Tune
 
 # Load environment variables from .env file
 load_dotenv()
