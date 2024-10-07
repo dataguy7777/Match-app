@@ -119,7 +119,7 @@ def read_uploaded_file(uploaded_file):
         uploaded_file (UploadedFile): File uploaded via Streamlit's file uploader.
 
     Returns:
-        pd.DataFrame: DataFrame containing the uploaded data.
+        pd.DataFrame or None: DataFrame containing the uploaded data or None for Excel files.
     """
     logger.info(f"Reading uploaded file: {uploaded_file.name}")
     try:
@@ -127,23 +127,21 @@ def read_uploaded_file(uploaded_file):
         if file_extension == 'csv':
             df = pd.read_csv(uploaded_file)
             logger.info("CSV file read successfully.")
+            return df
         elif file_extension in ['xlsx', 'xls']:
-            # Get sheet names
             excel_file = pd.ExcelFile(uploaded_file)
             sheet_names = excel_file.sheet_names
             st.session_state['sheet_names'] = sheet_names  # Store sheet names in session state
-            df = None  # Initialize as None; will be loaded per sheet
-            logger.info("Excel file detected with sheets.")
+            logger.info("Excel file read successfully with sheets: {}".format(sheet_names))
+            return None  # Indicate that sheets need to be selected
         else:
             st.error("Unsupported file type. Please upload a CSV or Excel file.")
             logger.warning(f"Unsupported file type: {file_extension}")
-            return pd.DataFrame()
-        logger.debug(f"Dataframe shape: {df.shape if df is not None else 'Multiple sheets'}")
-        return df
+            return None
     except Exception as e:
         logger.error(f"Error reading file {uploaded_file.name}: {e}")
         st.error("There was an error processing your file.")
-        return pd.DataFrame()
+        return None
 
 # Configure Streamlit Page
 st.set_page_config(page_title="🔍 Match Generator", layout="wide")
@@ -170,8 +168,9 @@ if app_mode == "Home":
 
     if uploaded_file:
         df_initial = read_uploaded_file(uploaded_file)
-        if not df_initial.empty or ('sheet_names' in st.session_state):
+        if (df_initial is not None and not df_initial.empty) or ('sheet_names' in st.session_state):
             st.success(f"✅ File '{uploaded_file.name}' uploaded successfully!")
+
             if 'sheet_names' in st.session_state:
                 sheet_names = st.session_state['sheet_names']
                 # Tabs for Source and Target
@@ -241,9 +240,17 @@ if app_mode == "Home":
         logger.info("No file uploaded by the user.")
 
 elif app_mode == "Display Matches":
-    import pages.page_Display_Matches
-    pages.page_Display_Matches.display_matches_page()
+    try:
+        import pages.page_Display_Matches
+        pages.page_Display_Matches.display_matches_page()
+    except Exception as e:
+        logger.error(f"Error loading Display Matches page: {e}")
+        st.error("An error occurred while loading the Display Matches page.")
 
 elif app_mode == "Fine-Tune Matches":
-    import pages.page_Fine_Tune
-    pages.page_Fine_Tune.fine_tune_matches_page()
+    try:
+        import pages.page_Fine_Tune
+        pages.page_Fine_Tune.fine_tune_matches_page()
+    except Exception as e:
+        logger.error(f"Error loading Fine-Tune Matches page: {e}")
+        st.error("An error occurred while loading the Fine-Tune Matches page.")
