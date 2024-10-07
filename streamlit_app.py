@@ -6,10 +6,6 @@ import os
 import logging
 from dotenv import load_dotenv
 
-# Import custom page modules
-import page_1_Display_Matches
-import page_2_Fine_Tune
-
 # Load environment variables from .env file
 load_dotenv()
 openai_api_key = os.getenv('OPENAI_API_KEY')
@@ -32,12 +28,13 @@ else:
     model = SentenceTransformer('all-MiniLM-L6-v2')  # You can choose another model
     logger.info("Using Hugging Face's SentenceTransformer for match generation.")
 
-def generate_matches(df, source_col, target_col, top_x=5):
+def generate_matches(df_source, df_target, source_col, target_col, top_x=5):
     """
-    Generates matches based on the input dataframe.
+    Generates matches based on the input dataframes.
 
     Args:
-        df (pd.DataFrame): Input dataframe containing data to generate matches.
+        df_source (pd.DataFrame): Source dataframe containing data to generate matches.
+        df_target (pd.DataFrame): Target dataframe containing data to find matches.
         source_col (str): Name of the source column.
         target_col (str): Name of the target column.
         top_x (int): Number of top matches to find.
@@ -49,16 +46,19 @@ def generate_matches(df, source_col, target_col, top_x=5):
     try:
         matches = []
 
-        source_sentences = df[source_col].dropna().tolist()
-        target_sentences = df[target_col].dropna().tolist()
+        source_sentences = df_source[source_col].dropna().tolist()
+        target_sentences = df_target[target_col].dropna().tolist()
 
         if openai_api_key:
             logger.info("Generating matches using OpenAI's API.")
             for source in source_sentences:
                 # Prepare the prompt for the LLM
-                prompt = f"Find the top {top_x} best matches for the following sentence from the target sentences:\n\nSource Sentence: {source}\n\nTarget Sentences:\n"
+                prompt = (
+                    f"Find the top {top_x} best matches for the following sentence from the target sentences:\n\n"
+                    f"Source Sentence: {source}\n\nTarget Sentences:\n"
+                )
                 for idx, target in enumerate(target_sentences):
-                    prompt += f"{idx+1}. {target}\n"
+                    prompt += f"{idx + 1}. {target}\n"
                 prompt += f"\nProvide the numbers of the top {top_x} matching target sentences, separated by commas."
 
                 # Call the OpenAI API
@@ -128,13 +128,17 @@ def read_uploaded_file(uploaded_file):
             df = pd.read_csv(uploaded_file)
             logger.info("CSV file read successfully.")
         elif file_extension in ['xlsx', 'xls']:
-            df = pd.read_excel(uploaded_file)
-            logger.info("Excel file read successfully.")
+            # Get sheet names
+            excel_file = pd.ExcelFile(uploaded_file)
+            sheet_names = excel_file.sheet_names
+            st.session_state['sheet_names'] = sheet_names  # Store sheet names in session state
+            df = None  # Initialize as None; will be loaded per sheet
+            logger.info("Excel file detected with sheets.")
         else:
             st.error("Unsupported file type. Please upload a CSV or Excel file.")
             logger.warning(f"Unsupported file type: {file_extension}")
             return pd.DataFrame()
-        logger.debug(f"Dataframe shape: {df.shape}")
+        logger.debug(f"Dataframe shape: {df.shape if df is not None else 'Multiple sheets'}")
         return df
     except Exception as e:
         logger.error(f"Error reading file {uploaded_file.name}: {e}")
@@ -155,7 +159,7 @@ if app_mode == "Home":
     with st.expander("ℹ️ Instructions"):
         st.write("""
             - **Upload Data:** Provide a CSV or Excel file to generate matches.
-            - **Select Columns:** Choose the source and target columns from your data.
+            - **Select Source and Target:** Choose the sheets and columns for source and target data.
             - **Set Parameters:** Define how many top matches to generate.
             - **Generate Matches:** Click the button to create matches based on your data.
             - **View & Fine-Tune:** Navigate to the 'Display Matches' and 'Fine-Tune Matches' pages to review and adjust your matches.
@@ -165,34 +169,70 @@ if app_mode == "Home":
     uploaded_file = st.file_uploader("📂 Choose a CSV or Excel file", type=['csv', 'xlsx', 'xls'])
 
     if uploaded_file:
-        df = read_uploaded_file(uploaded_file)
-        if not df.empty:
+        df_initial = read_uploaded_file(uploaded_file)
+        if not df_initial.empty or ('sheet_names' in st.session_state):
             st.success(f"✅ File '{uploaded_file.name}' uploaded successfully!")
-            st.subheader("🔍 Data Preview")
-            st.dataframe(df.head())
-            logger.info(f"File '{uploaded_file.name}' uploaded and previewed.")
+            if 'sheet_names' in st.session_state:
+                sheet_names = st.session_state['sheet_names']
+                # Tabs for Source and Target
+                tabs = st.tabs(["📁 Source", "📁 Target"])
 
-            # Column Selection
-            st.subheader("📊 Select Columns for Matching")
-            columns = df.columns.tolist()
-            source_col = st.selectbox("🔹 Select the Source Column", options=columns)
-            target_col = st.selectbox("🔹 Select the Target Column", options=columns)
+                with tabs[0]:
+                    st.subheader("📁 Select Source Sheet and Column")
+                    source_sheet = st.selectbox("🔹 Select Source Sheet", options=sheet_names, key='source_sheet')
+                    source_df = pd.read_excel(uploaded_file, sheet_name=source_sheet)
+                    source_columns = source_df.columns.tolist()
+                    source_col = st.selectbox("🔹 Select Source Column", options=source_columns, key='source_col')
 
-            # Parameter for top X matches
-            st.subheader("⚙️ Set Parameters")
-            top_x = st.number_input("🔢 Enter the number of top matches to find (X)", min_value=1, max_value=20, value=5)
+                with tabs[1]:
+                    st.subheader("📁 Select Target Sheet and Column")
+                    target_sheet = st.selectbox("🔹 Select Target Sheet", options=sheet_names, key='target_sheet')
+                    target_df = pd.read_excel(uploaded_file, sheet_name=target_sheet)
+                    target_columns = target_df.columns.tolist()
+                    target_col = st.selectbox("🔹 Select Target Column", options=target_columns, key='target_col')
 
-            # Generate Matches Button
-            if st.button("🚀 Generate Matches"):
-                with st.spinner("Generating matches, please wait..."):
-                    matches_df = generate_matches(df, source_col, target_col, top_x=top_x)
-                    if not matches_df.empty:
-                        st.session_state['matches_df'] = matches_df
-                        st.success("✅ Matches generated and saved to session state.")
-                        logger.info("Matches generated and saved to session state.")
-                    else:
-                        st.warning("⚠️ No matches were generated.")
-                        logger.warning("Generated matches dataframe is empty.")
+                # Parameter for top X matches
+                st.subheader("⚙️ Set Parameters")
+                top_x = st.number_input("🔢 Enter the number of top matches to find (X)", min_value=1, max_value=20, value=5)
+
+                # Generate Matches Button
+                if st.button("🚀 Generate Matches"):
+                    with st.spinner("Generating matches, please wait..."):
+                        matches_df = generate_matches(source_df, target_df, source_col, target_col, top_x=top_x)
+                        if not matches_df.empty:
+                            st.session_state['matches_df'] = matches_df
+                            st.success("✅ Matches generated and saved to session state.")
+                            logger.info("Matches generated and saved to session state.")
+                        else:
+                            st.warning("⚠️ No matches were generated.")
+                            logger.warning("Generated matches dataframe is empty.")
+
+            else:
+                # If the file is CSV
+                st.subheader("🔍 Data Preview")
+                st.dataframe(df_initial.head())
+
+                # Column Selection
+                st.subheader("📊 Select Columns for Matching")
+                columns = df_initial.columns.tolist()
+                source_col = st.selectbox("🔹 Select the Source Column", options=columns, key='source_col_csv')
+                target_col = st.selectbox("🔹 Select the Target Column", options=columns, key='target_col_csv')
+
+                # Parameter for top X matches
+                st.subheader("⚙️ Set Parameters")
+                top_x = st.number_input("🔢 Enter the number of top matches to find (X)", min_value=1, max_value=20, value=5)
+
+                # Generate Matches Button
+                if st.button("🚀 Generate Matches"):
+                    with st.spinner("Generating matches, please wait..."):
+                        matches_df = generate_matches(df_initial, df_initial, source_col, target_col, top_x=top_x)
+                        if not matches_df.empty:
+                            st.session_state['matches_df'] = matches_df
+                            st.success("✅ Matches generated and saved to session state.")
+                            logger.info("Matches generated and saved to session state.")
+                        else:
+                            st.warning("⚠️ No matches were generated.")
+                            logger.warning("Generated matches dataframe is empty.")
         else:
             st.warning("⚠️ Failed to process the uploaded file. Please check the file format and content.")
             logger.warning("Uploaded file resulted in an empty dataframe.")
@@ -201,7 +241,9 @@ if app_mode == "Home":
         logger.info("No file uploaded by the user.")
 
 elif app_mode == "Display Matches":
-    page_1_Display_Matches.display_matches_page()
+    import pages.page_Display_Matches
+    pages.page_Display_Matches.display_matches_page()
 
 elif app_mode == "Fine-Tune Matches":
-    page_2_Fine_Tune.fine_tune_matches_page()
+    import pages.page_Fine_Tune
+    pages.page_Fine_Tune.fine_tune_matches_page()
