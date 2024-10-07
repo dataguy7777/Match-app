@@ -1,10 +1,15 @@
-#streamlit_app.py
+
+# streamlit_app.py
 
 import streamlit as st
 import pandas as pd
 import os
 import logging
 from dotenv import load_dotenv
+
+# Import custom page modules
+import page_1_Display_Matches
+import page_2_Fine_Tune
 
 # Load environment variables from .env file
 load_dotenv()
@@ -137,55 +142,67 @@ def read_uploaded_file(uploaded_file):
         st.error("There was an error processing your file.")
         return pd.DataFrame()
 
+# Configure Streamlit Page
 st.set_page_config(page_title="🔍 Match Generator", layout="wide")
 
-st.title("🔍 Match Generator")
+# Sidebar Navigation
+st.sidebar.title("🗂️ Navigation")
+app_mode = st.sidebar.radio("Go to", ["Home", "Display Matches", "Fine-Tune Matches"])
 
-# Instructions Section
-with st.expander("ℹ️ Instructions"):
-    st.write("""
-        - **Upload Data:** Provide a CSV or Excel file to generate matches.
-        - **Select Columns:** Choose the source and target columns from your data.
-        - **Set Parameters:** Define how many top matches to generate.
-        - **Generate Matches:** Click the button to create matches based on your data.
-        - **View & Fine-Tune:** Navigate to the 'Display Matches' and 'Fine-Tune' pages to review and adjust your matches.
-    """)
+if app_mode == "Home":
+    st.title("🔍 Match Generator")
 
-# File Uploader
-uploaded_file = st.file_uploader("📂 Choose a CSV or Excel file", type=['csv', 'xlsx', 'xls'])
+    # Instructions Section
+    with st.expander("ℹ️ Instructions"):
+        st.write("""
+            - **Upload Data:** Provide a CSV or Excel file to generate matches.
+            - **Select Columns:** Choose the source and target columns from your data.
+            - **Set Parameters:** Define how many top matches to generate.
+            - **Generate Matches:** Click the button to create matches based on your data.
+            - **View & Fine-Tune:** Navigate to the 'Display Matches' and 'Fine-Tune Matches' pages to review and adjust your matches.
+        """)
 
-if uploaded_file:
-    df = read_uploaded_file(uploaded_file)
-    if not df.empty:
-        st.success(f"✅ File '{uploaded_file.name}' uploaded successfully!")
-        st.subheader("🔍 Data Preview")
-        st.dataframe(df.head())
-        logger.info(f"File '{uploaded_file.name}' uploaded and previewed.")
+    # File Uploader
+    uploaded_file = st.file_uploader("📂 Choose a CSV or Excel file", type=['csv', 'xlsx', 'xls'])
 
-        # Column Selection
-        st.subheader("📊 Select Columns for Matching")
-        columns = df.columns.tolist()
-        source_col = st.selectbox("🔹 Select the Source Column", options=columns)
-        target_col = st.selectbox("🔹 Select the Target Column", options=columns)
+    if uploaded_file:
+        df = read_uploaded_file(uploaded_file)
+        if not df.empty:
+            st.success(f"✅ File '{uploaded_file.name}' uploaded successfully!")
+            st.subheader("🔍 Data Preview")
+            st.dataframe(df.head())
+            logger.info(f"File '{uploaded_file.name}' uploaded and previewed.")
 
-        # Parameter for top X matches
-        st.subheader("⚙️ Set Parameters")
-        top_x = st.number_input("🔢 Enter the number of top matches to find (X)", min_value=1, max_value=20, value=5)
+            # Column Selection
+            st.subheader("📊 Select Columns for Matching")
+            columns = df.columns.tolist()
+            source_col = st.selectbox("🔹 Select the Source Column", options=columns)
+            target_col = st.selectbox("🔹 Select the Target Column", options=columns)
 
-        # Generate Matches Button
-        if st.button("🚀 Generate Matches"):
-            with st.spinner("Generating matches, please wait..."):
-                matches_df = generate_matches(df, source_col, target_col, top_x=top_x)
-                if not matches_df.empty:
-                    st.session_state['matches_df'] = matches_df
-                    st.success("✅ Matches generated and saved to session state.")
-                    logger.info("Matches generated and saved to session state.")
-                else:
-                    st.warning("⚠️ No matches were generated.")
-                    logger.warning("Generated matches dataframe is empty.")
+            # Parameter for top X matches
+            st.subheader("⚙️ Set Parameters")
+            top_x = st.number_input("🔢 Enter the number of top matches to find (X)", min_value=1, max_value=20, value=5)
+
+            # Generate Matches Button
+            if st.button("🚀 Generate Matches"):
+                with st.spinner("Generating matches, please wait..."):
+                    matches_df = generate_matches(df, source_col, target_col, top_x=top_x)
+                    if not matches_df.empty:
+                        st.session_state['matches_df'] = matches_df
+                        st.success("✅ Matches generated and saved to session state.")
+                        logger.info("Matches generated and saved to session state.")
+                    else:
+                        st.warning("⚠️ No matches were generated.")
+                        logger.warning("Generated matches dataframe is empty.")
+        else:
+            st.warning("⚠️ Failed to process the uploaded file. Please check the file format and content.")
+            logger.warning("Uploaded file resulted in an empty dataframe.")
     else:
-        st.warning("⚠️ Failed to process the uploaded file. Please check the file format and content.")
-        logger.warning("Uploaded file resulted in an empty dataframe.")
-else:
-    st.info("📌 Please upload a CSV or Excel file to begin.")
-    logger.info("No file uploaded by the user.")
+        st.info("📌 Please upload a CSV or Excel file to begin.")
+        logger.info("No file uploaded by the user.")
+
+elif app_mode == "Display Matches":
+    page_1_Display_Matches.display_matches_page()
+
+elif app_mode == "Fine-Tune Matches":
+    page_2_Fine_Tune.fine_tune_matches_page()
