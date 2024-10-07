@@ -17,3 +17,15 @@ A simple Streamlit app template for you to modify!
    ```
    $ streamlit run streamlit_app.py
    ```
+
+Repository Structure
+====================
+
+.
+├── .gitignore
+├── 1_Display_Matches.py
+├── 2_Fine_Tune.py
+├── LICENSE
+├── README.md
+├── requirements.txt
+└── streamlit_app.py
